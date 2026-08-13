@@ -127,7 +127,7 @@
     const password = document.getElementById("password").value.trim();
     try {
       // GramJS تابع کمکی computeCheck برای هش‌کردن رمز 2FA دارد
-      const { computeCheck } = window.telegram.Password;
+      const { computeCheck } = window.telegram.password;
       const passwordInfo = await client.invoke(new window.telegram.Api.account.GetPassword());
       const passwordSrpCheck = await computeCheck(passwordInfo, password);
 
