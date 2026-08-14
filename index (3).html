@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ورود به Mini App</title>
+  <!-- اسکریپت رسمی تلگرام برای Mini App -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: var(--tg-theme-bg-color, #ffffff);
+      color: var(--tg-theme-text-color, #000000);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      text-align: center;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    #status { margin-top: 16px; font-size: 14px; opacity: 0.8; }
+    .avatar { width: 72px; height: 72px; border-radius: 50%; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="status">در حال ورود...</div>
+  </div>
+
+  <script>
+    const BACKEND_URL = 'https://YOUR_BACKEND_DOMAIN/api/auth/telegram';
+
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    async function login() {
+      const statusEl = document.getElementById('status');
+
+      // initData همون رشته‌ای هست که باید برای بک‌اند فرستاده بشه
+      const initData = tg.initData;
+
+      if (!initData) {
+        statusEl.textContent = 'این صفحه باید داخل تلگرام باز شود.';
+        return;
+      }
+
+      try {
+        const res = await fetch(BACKEND_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData }),
+        });
+
+        const data = await res.json();
+
+        if (!data.ok) {
+          statusEl.textContent = 'خطا در ورود: ' + data.error;
+          return;
+        }
+
+        // ذخیره‌ی session_id برای درخواست‌های بعدی
+        localStorage.setItem('session_id', data.session_id);
+
+        renderUser(data.user);
+      } catch (err) {
+        statusEl.textContent = 'خطا در ارتباط با سرور';
+        console.error(err);
+      }
+    }
+
+    function renderUser(user) {
+      const app = document.getElementById('app');
+      app.innerHTML = `
+        ${user.photo_url ? `<img class="avatar" src="${user.photo_url}" />` : ''}
+        <h3>خوش آمدی، ${user.first_name || ''} ${user.last_name || ''}</h3>
+        <div id="status">با موفقیت وارد شدید ✅</div>
+      `;
+    }
+
+    login();
+  </script>
+</body>
+</html>
