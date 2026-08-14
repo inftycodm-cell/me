@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ورود به اکانت</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<!-- GramJS از طریق CDN (نسخه bundle شده برای مرورگر) -->
-<script src="https://unpkg.com/telegram@2.22.2/dist/browser.js"></script>
+<!-- باندل محلی GramJS که خودتان ساختید -->
+<script src="./telegram.js"></script>
 <style>
   body { font-family: sans-serif; padding: 20px; background: #f5f5f5; }
   input { width: 100%; padding: 10px; margin: 8px 0; box-sizing: border-box; }
@@ -20,7 +20,6 @@
 
 <h3>ورود به اکانت تلگرام</h3>
 
-<!-- این مقادیر را با API_ID و API_HASH خودتان (از my.telegram.org) جایگزین کنید -->
 <script>
   const API_ID = 34207006;                  // << جایگزین کنید
   const API_HASH = "b79f4a2536cf504a115ba0d4f0e88b58"; // << جایگزین کنید
@@ -45,10 +44,6 @@
 <div id="status"></div>
 
 <script>
-  const { TelegramClient } = window.Telegram_ || window.telegram || {};
-  // پکیج GramJS در window با نام "window.telegram" یا export مشابه در دسترس است؛
-  // بسته به نسخه bundle ممکن است لازم باشد این خط را با کنسول مرورگر تطبیق دهید.
-
   const tg = window.Telegram?.WebApp;
   tg?.ready();
 
@@ -56,7 +51,6 @@
   let client;
   let phoneNumber;
   let phoneCodeHash;
-  let resolveCode, resolvePassword;
 
   function setStatus(msg) {
     document.getElementById("status").innerText = msg;
@@ -74,14 +68,12 @@
     setStatus("در حال اتصال به تلگرام...");
 
     const session = new StringSession("");
-    client = new TelegramClient(session, API_ID, API_HASH, {
+    client = new window.telegram.TelegramClient(session, API_ID, API_HASH, {
       connectionRetries: 5,
     });
 
     await client.connect();
 
-    // GramJS با client.start معمولاً کل فلو را مدیریت می‌کند؛
-    // اینجا برای کنترل دستی مرحله به مرحله از invoke مستقیم استفاده می‌کنیم.
     try {
       const { Api } = window.telegram;
       const result = await client.invoke(
@@ -126,8 +118,8 @@
   async function submitPassword() {
     const password = document.getElementById("password").value.trim();
     try {
-      // GramJS تابع کمکی computeCheck برای هش‌کردن رمز 2FA دارد
-      const { computeCheck } = window.telegram.Password;
+      // نام درست: window.telegram.password (حرف کوچک)
+      const { computeCheck } = window.telegram.password;
       const passwordInfo = await client.invoke(new window.telegram.Api.account.GetPassword());
       const passwordSrpCheck = await computeCheck(passwordInfo, password);
 
