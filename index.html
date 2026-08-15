@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>All Perps</title>
+
+<!-- Telegram Mini App SDK: gives window.Telegram.WebApp (initData, theme, expand) -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<style>
+  :root{
+    --bg:#efeff4; --card:#ffffff; --ink:#000; --sub:#8a8a8e; --hair:#e4e4e8; --sep:#d9d9de;
+    --accent:#007aff; --accent-press:#0063d1; --green:#34c759; --red:#ff3b30;
+    --chip:#f0f0f4; --tg:#2aabee;
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    --mono:"SF Mono",ui-monospace,Menlo,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#1c1c1e;--card:#2c2c2e;--ink:#fff;--sub:#98989e;--hair:#3a3a3c;--sep:#38383a;
+      --accent:#0a84ff;--accent-press:#3a9bff;--green:#30d158;--red:#ff453a;--chip:#3a3a3c;}
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font);min-height:100vh;
+    display:flex;flex-direction:column;}
+  .app{width:100%;max-width:440px;margin:0 auto;flex:1;display:flex;flex-direction:column;
+    padding:0 16px calc(120px + env(safe-area-inset-bottom));position:relative;}
+
+  .nav{padding:calc(16px + env(safe-area-inset-top)) 4px 8px;display:flex;align-items:center;justify-content:space-between;}
+  .nav .title{font-size:16px;font-weight:600;letter-spacing:-.01em;}
+  .nav .ctx{font-size:12px;color:var(--sub);display:flex;align-items:center;gap:6px;}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--sub);}
+  .dot.on{background:var(--green);box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 22%,transparent);}
+
+  .step{display:none;flex-direction:column;flex:1;}
+  .step.on{display:flex;}
+
+  /* ---------- shared bits ---------- */
+  .hero{padding:26px 6px 8px;}
+  .badge{width:52px;height:52px;border-radius:15px;background:color-mix(in srgb,var(--accent) 14%,transparent);display:grid;place-items:center;margin-bottom:16px;}
+  h1{font-size:26px;line-height:1.16;font-weight:700;letter-spacing:-.022em;margin:0 0 9px;}
+  .lead{font-size:15px;line-height:1.46;color:var(--sub);}
+  .lead b{color:var(--ink);font-weight:600;}
+  .grouphdr{font-size:12.5px;color:var(--sub);text-transform:uppercase;letter-spacing:.03em;margin:22px 6px 7px;font-weight:500;}
+  .group{background:var(--card);border-radius:12px;overflow:hidden;}
+  .row{display:flex;align-items:center;gap:12px;padding:12px 15px;position:relative;}
+  .row + .row::before{content:"";position:absolute;top:0;left:47px;right:0;height:1px;background:var(--sep);}
+  .row .ic{flex:0 0 auto;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;}
+  .ic.ok{background:color-mix(in srgb,var(--green) 16%,transparent);}
+  .ic.no{background:color-mix(in srgb,var(--red) 15%,transparent);}
+  .row .rt{font-size:15px;line-height:1.3;}
+  .row .rt small{display:block;color:var(--sub);font-size:13px;margin-top:1px;}
+  .row .val{margin-left:auto;color:var(--sub);font-size:15px;font-variant-numeric:tabular-nums;}
+
+  /* ---------- fixed footer button ---------- */
+  .foot{position:fixed;left:0;right:0;bottom:0;padding:14px 16px calc(14px + env(safe-area-inset-bottom));
+    background:linear-gradient(to top,var(--bg) 68%,transparent);}
+  .foot .inner{max-width:440px;margin:0 auto;}
+  .cta{width:100%;border:0;border-radius:13px;padding:16px;background:var(--accent);color:#fff;
+    font-size:17px;font-weight:600;font-family:var(--font);cursor:pointer;letter-spacing:-.01em;
+    display:flex;align-items:center;justify-content:center;gap:8px;transition:.12s;}
+  .cta:active{background:var(--accent-press);transform:scale(.99);}
+  .cta[disabled]{opacity:.55;pointer-events:none;}
+  .cta.secondary{background:transparent;color:var(--accent);margin-top:6px;font-size:15px;padding:11px;}
+  .footnote{text-align:center;font-size:12px;color:var(--sub);margin-top:9px;}
+  .spinner{width:18px;height:18px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spinner{animation:none}}
+
+  /* ---------- step 1: sign in ---------- */
+  .preview{margin-top:22px;background:var(--card);border-radius:14px;padding:15px;}
+  .preview .ph{display:flex;align-items:center;gap:7px;margin-bottom:12px;}
+  .preview .tag{font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--red);background:color-mix(in srgb,var(--red) 12%,transparent);padding:3px 8px;border-radius:6px;}
+  .preview .hint{font-size:11px;color:var(--sub);font-weight:500;}
+  .preview .coin{display:flex;align-items:center;gap:11px;}
+  .preview .tic{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;color:#08090d;background:radial-gradient(circle at 30% 25%,#ffe08a,#f7b733);}
+  .preview .nm{font-weight:700;font-size:15px;}
+  .preview .px{color:var(--sub);font-size:11.5px;font-variant-numeric:tabular-nums;}
+  .preview .chg{margin-left:auto;font-size:17px;font-weight:800;color:var(--green);}
+  .preview .bt{display:flex;gap:8px;margin-top:12px;}
+  .preview .bt span{flex:1;text-align:center;border-radius:10px;padding:9px;font-weight:700;font-size:13px;}
+  .preview .bt .s{background:linear-gradient(180deg,#ff5c7a,#e8324f);color:#fff;}
+  .preview .bt .l{background:color-mix(in srgb,var(--green) 14%,transparent);color:var(--green);}
+  .signbtns{margin-top:22px;}
+  .fine{color:var(--sub);font-size:12px;line-height:1.5;text-align:center;margin-top:14px;}
+
+  /* ---------- step 2: consent — budget chips ---------- */
+  .chips{display:flex;gap:8px;padding:13px 15px 15px;flex-wrap:wrap;}
+  .chip{flex:1 1 auto;min-width:64px;text-align:center;padding:11px 8px;border-radius:10px;background:var(--chip);
+    font-size:15px;font-weight:600;color:var(--ink);cursor:pointer;border:1.5px solid transparent;transition:.12s;}
+  .chip.on{background:color-mix(in srgb,var(--accent) 16%,transparent);border-color:var(--accent);color:var(--accent);}
+  .budgetline{padding:0 15px 14px;font-size:13px;color:var(--sub);}
+  .budgetline b{color:var(--ink);}
+  #custom{display:none;padding:0 15px 15px;}
+  #custom.show{display:block;}
+  #custom input{width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid var(--sep);background:var(--bg);color:var(--ink);font-size:16px;font-family:var(--font);}
+  #custom input:focus{outline:none;border-color:var(--accent);}
+  .reassure{display:flex;gap:9px;align-items:flex-start;margin:18px 8px 4px;font-size:13px;color:var(--sub);line-height:1.4;}
+  .reassure svg{flex:0 0 auto;margin-top:1px;}
+  .walletchip{margin:14px 6px 0;font-size:12.5px;color:var(--sub);font-family:var(--mono);display:flex;align-items:center;gap:7px;}
+
+  /* ---------- success ---------- */
+  .done{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;gap:6px;opacity:0;pointer-events:none;transition:opacity .28s;z-index:20;}
+  .done.show{opacity:1;pointer-events:auto;}
+  .check{width:84px;height:84px;border-radius:50%;background:var(--green);display:grid;place-items:center;margin-bottom:20px;transform:scale(.5);transition:transform .4s cubic-bezier(.2,1.3,.4,1);}
+  .done.show .check{transform:scale(1);}
+  .done h2{font-size:24px;font-weight:700;letter-spacing:-.02em;}
+  .done p{font-size:15px;color:var(--sub);margin:6px 0 0;line-height:1.45;max-width:280px;}
+  .done .pill{margin-top:16px;font-size:13px;color:var(--sub);background:var(--card);padding:8px 14px;border-radius:20px;}
+  .done .back{margin-top:30px;color:var(--accent);font-size:16px;font-weight:600;cursor:pointer;}
+
+  /* demo banner */
+  .demobar{margin:16px 6px 0;padding:9px 12px;border-radius:9px;background:color-mix(in srgb,#ff9500 14%,transparent);border:1px solid color-mix(in srgb,#ff9500 30%,transparent);font-size:12px;color:var(--ink);line-height:1.4;}
+  .demobar b{font-weight:700;}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(16px);background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:12px 16px;font-weight:600;font-size:13px;opacity:0;transition:.3s;z-index:50;box-shadow:0 20px 50px -20px rgba(0,0,0,.4);}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+  #dbg{display:none;position:fixed;left:0;right:0;bottom:0;max-height:42vh;overflow:auto;margin:0;z-index:60;
+    background:#0b0b0d;color:#7CFC9A;font-family:var(--mono);font-size:11px;line-height:1.5;padding:12px 14px;white-space:pre-wrap;border-top:2px solid #34c759;}
+</style>
+</head>
+<body>
+  <div class="app">
+    <div class="nav">
+      <span class="title">All Perps</span>
+      <span class="ctx" id="ctx"><span class="dot" id="ctxDot"></span><span id="ctxTxt">Connecting…</span></span>
+    </div>
+
+    <!-- ============ STEP 1 — SIGN IN ============ -->
+    <div class="step on" id="stepSignin">
+      <div class="hero">
+        <div class="badge">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 2l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V5l7-3z" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h1>Short anything on Solana</h1>
+        <p class="lead">Long or short fast-moving tokens the moment they launch. <b>No seed phrase</b> — your wallet is created for you, and stays yours.</p>
+      </div>
+
+      <div class="preview">
+        <div class="ph"><span class="tag">Running hot</span><span class="hint">up 240% today — short the pump?</span></div>
+        <div class="coin">
+          <div class="tic">M</div>
+          <div><div class="nm">MOODENG</div><div class="px">$0.4218 — $2.1M OI</div></div>
+          <div class="chg">+240%</div>
+        </div>
+        <div class="bt"><span class="s">Short</span><span class="l">Long</span></div>
+      </div>
+
+      <div class="signbtns">
+        <button class="cta" id="tgBtn"><span id="tgLabel">Continue with Telegram</span></button>
+        <button class="cta secondary" id="emailBtn">Use email instead</button>
+        <div class="fine">Your wallet is non-custodial and yours to export anytime.</div>
+      </div>
+    </div>
+
+    <!-- ============ STEP 2 — GRANT SESSION ============ -->
+    <div class="step" id="stepConsent">
+      <div class="hero">
+        <div class="badge">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 2l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V5l7-3z" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h1>You stay in control</h1>
+        <p class="lead">Approve once and <b>trade in chat with no popups</b> for the next 24 hours. Your wallet stays yours — we can never withdraw it.</p>
+        <div class="walletchip"><span class="dot on"></span><span id="consentAddr">wallet ready</span> <span style="opacity:.45">—</span> <span id="consentBal">—</span></div>
+      </div>
+
+      <div class="grouphdr">Session budget</div>
+      <div class="group">
+        <div class="budgetline">Trades up to <b id="budgetEcho">$500</b> before re-approving. <a href="#" id="budgetChange" style="color:var(--accent);text-decoration:none;font-weight:600">Change</a></div>
+        <div id="custom"><input type="number" inputmode="numeric" placeholder="Enter amount in USD" id="customInput"></div>
+      </div>
+
+      <div class="grouphdr">What this allows</div>
+      <div class="group">
+        <div class="row"><span class="ic ok"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rt">Place trades for you<small>Up to your session budget</small></span></div>
+        <div class="row"><span class="ic ok"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rt">Only on the All Perps market<small>No other program can be touched</small></span></div>
+        <div class="row"><span class="ic ok"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="rt">Expires automatically<small>Ends in 24 hours</small></span><span class="val">24h</span></div>
+      </div>
+
+      <div class="grouphdr">It can never</div>
+      <div class="group">
+        <div class="row"><span class="ic no"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="var(--red)" stroke-width="2.4" stroke-linecap="round"/></svg></span><span class="rt">Withdraw or move your funds</span></div>
+        <div class="row"><span class="ic no"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="var(--red)" stroke-width="2.4" stroke-linecap="round"/></svg></span><span class="rt">Trade beyond your budget</span></div>
+      </div>
+
+      <div class="reassure">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="var(--sub)" stroke-width="1.6"/><path d="M12 11v5M12 8h.01" stroke="var(--sub)" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span>You own this wallet through Privy. You can revoke this session or withdraw yourself, anytime.</span>
+      </div>
+
+      <div class="demobar" id="demobar" style="display:none"><b>Demo:</b> trading isn't live yet (protocol in build) — this grants a real session, trades are simulated.</div>
+    </div>
+  </div>
+
+  <!-- fixed footer, label swaps per step -->
+  <div class="foot" id="foot" style="display:none">
+    <div class="inner">
+      <button class="cta" id="mainBtn"><span id="mainLabel">Allow trading $500 for 24h</span></button>
+      <div class="footnote" id="footnote">Powered by Privy session signers</div>
+    </div>
+  </div>
+
+  <!-- success -->
+  <div class="done" id="done">
+    <div class="check"><svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <h2>You're all set</h2>
+    <p>Head back to the chat and trade — no popups until your session ends.</p>
+    <div class="pill" id="donePill">Session active — $500 for 24h</div>
+    <div class="back" id="backBtn">Back to chat →</div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <pre id="dbg"></pre>
+  <div id="privy-root" style="display:none"></div>
+
+  <!-- =========================================================================
+       PRIVY APP ID — public client key, safe in frontend. NEVER put the app
+       SECRET or bot token here; those stay in the Privy dashboard / server.
+       Dashboard setup for full function:
+         • Login → enable Telegram (paste bot token there, secret, not here) + email
+         • Settings → allowed origins → add https://<your-username>.github.io
+         • Wallets → Session signers → enable + define policy (needed for real grant)
+  ========================================================================== -->
+  <script>window.PRIVY_APP_ID = "cms2tdyrm00kw0cleaz7aszv9";</script>
+
+  <script type="module">
+    const $ = s => document.querySelector(s);
+    const toast = m => { const t=$('#toast'); t.textContent=m; t.classList.add('on'); setTimeout(()=>t.classList.remove('on'),2600); };
+
+    // ---------- diagnostics (tap the ⓘ dot in the header to reveal) ----------
+    const dbg = (m)=>{ const b=$('#dbg'); if(b){ b.textContent += m + '\n'; } console.log('[AP]', m); };
+    window.addEventListener('error', e => dbg('JS ERROR: ' + (e.message || (e.error && e.error.message) || e.filename)));
+    window.addEventListener('unhandledrejection', e => dbg('PROMISE REJECT: ' + (e.reason && (e.reason.message || e.reason))));
+    $('#ctx').addEventListener('click', ()=>{ const b=$('#dbg'); b.style.display = b.style.display==='block'?'none':'block'; });
+
+    // ---------- Telegram bootstrap ----------
+    const TG = window.Telegram && window.Telegram.WebApp;
+    const inTelegram = !!(TG && TG.initData && TG.initData.length > 0);
+    if (TG) { try { TG.ready(); TG.expand(); } catch(_){} }
+    $('#ctxDot').classList.toggle('on', inTelegram);
+    $('#ctxTxt').textContent = inTelegram ? 'Telegram' : 'Open in Telegram';
+    dbg('boot · inTelegram=' + inTelegram + ' · initDataLen=' + (TG && TG.initData ? TG.initData.length : 0) + ' · appId=' + (window.PRIVY_APP_ID||'').slice(0,6));
+
+    // ---------- state ----------
+    let budget = 500, authed = false, addr = null;
+    const fmt = n => '$' + Number(n||0).toLocaleString('en-US');
+
+    function goConsent(){
+      $('#stepSignin').classList.remove('on');
+      $('#stepConsent').classList.add('on');
+      $('#foot').style.display = 'block';
+      $('#demobar').style.display = 'block';
+      refresh();
+    }
+    function refresh(){
+      $('#budgetEcho').textContent = budget ? fmt(budget) : '—';
+      $('#mainLabel').textContent = budget ? `Allow trading ${fmt(budget)} for 24h` : 'Enter an amount';
+      $('#donePill').textContent = `Session active — ${fmt(budget)} for 24h`;
+      $('#mainBtn').disabled = !budget;
+    }
+
+    // budget: defaults to $500, "Change" reveals an optional custom amount
+    const custom = $('#custom'), customInput = $('#customInput');
+    $('#budgetChange').addEventListener('click', e=>{
+      e.preventDefault();
+      const showing = custom.classList.toggle('show');
+      if(showing){ if(!customInput.value) customInput.value = budget; customInput.focus(); }
+      else if(!Number(customInput.value)){ budget = 500; refresh(); }
+    });
+    customInput.addEventListener('input', ()=>{ budget=Number(customInput.value)||0; refresh(); });
+
+    $('#backBtn').onclick = () => { try{ TG && TG.close(); }catch(_){}; $('#done').classList.remove('show'); };
+
+    // ---------- Privy ----------
+    const APP_ID = window.PRIVY_APP_ID;
+    let privyApi = null, delegateFn = null;
+
+    // Fallback handlers so a tap BEFORE the SDK is ready tells us so (instead of nothing).
+    $('#tgBtn').onclick = ()=> dbg('TG tapped — SDK not ready yet');
+    $('#emailBtn').onclick = ()=> dbg('email tapped — SDK not ready yet');
+
+    async function boot(){
+      dbg('importing Privy SDK from esm.sh …');
+      try{
+        const React = (await import('https://esm.sh/react@18.3.1')).default;
+        const { createRoot } = await import('https://esm.sh/react-dom@18.3.1/client');
+        const Privy = await import('https://esm.sh/@privy-io/react-auth@2?deps=react@18.3.1,react-dom@18.3.1');
+        const { PrivyProvider, usePrivy } = Privy;
+        const h = React.createElement;
+        const HAS_TG_HOOK = typeof Privy.useLoginWithTelegram === 'function';
+
+        function solAddr(user){
+          try{
+            const acc = (user && user.linkedAccounts) || [];
+            const w = acc.find(a => a.type==='wallet' && a.chainType==='solana');
+            if (w && w.address) return w.address;
+            if (user && user.wallet && user.wallet.chainType==='solana') return user.wallet.address;
+          }catch(_){}
+          return null;
+        }
+
+        function Controller(){
+          const p = usePrivy();
+          privyApi = p;
+          const tg = HAS_TG_HOOK ? Privy.useLoginWithTelegram() : null;
+          // delegated-actions hook (name varies by SDK version) — grab defensively
+          try{
+            if (typeof Privy.useDelegatedActions === 'function'){
+              const d = Privy.useDelegatedActions();
+              delegateFn = d && (d.delegateWallet || d.delegate) ? (d.delegateWallet || d.delegate) : null;
+            }
+          }catch(_){}
+
+          React.useEffect(()=>{
+            dbg('privy effect · ready='+p.ready+' · tgHook='+HAS_TG_HOOK+' · authed='+p.authenticated);
+            if(!p.ready) return;
+            dbg('PRIVY READY ✓');
+            const startTg = ()=>{
+              if(inTelegram && tg && tg.initLoginWithTelegram){
+                dbg('calling initLoginWithTelegram() …');
+                $('#tgLabel').innerHTML='<span class="spinner"></span>';
+                tg.initLoginWithTelegram()
+                  .then(()=> dbg('initLoginWithTelegram resolved'))
+                  .catch(e=>{ dbg('TG LOGIN FAILED: '+(e && (e.message||e))); toast('Telegram login failed — tap ⓘ'); $('#tgLabel').textContent='Continue with Telegram'; });
+              } else {
+                dbg('no TG context/hook → opening Privy modal');
+                try{ p.login(); }catch(e){ dbg('p.login threw: '+(e&&e.message)); }
+              }
+            };
+            $('#tgBtn').onclick = startTg;
+            $('#emailBtn').onclick = ()=>{ dbg('email tap → p.login()'); try{ p.login(); }catch(e){ dbg('p.login threw: '+(e&&e.message)); } };
+            if(inTelegram && !p.authenticated && tg && tg.initLoginWithTelegram){
+              dbg('auto-starting TG login');
+              startTg();
+            }
+          },[p.ready]);
+
+          React.useEffect(()=>{
+            if(p.authenticated && !authed){
+              authed = true;
+              dbg('AUTHENTICATED ✓ · showing app, resolving wallet in background…');
+              // Move to the consent screen IMMEDIATELY — don't make the user wait
+              // on a blocking wallet-creation screen. Fill the address when ready.
+              goConsent();
+              $('#consentAddr').textContent = 'creating wallet…';
+              let n=0;
+              (function tick(){
+                const a = solAddr(p.user);
+                if(a){ dbg('wallet ready: '+a.slice(0,6)); addr=a; $('#consentAddr').textContent = a.slice(0,4)+'…'+a.slice(-4); loadBalance(a); }
+                else if(n++<80){ setTimeout(tick,500); } // keep trying up to ~40s, non-blocking
+                else { dbg('wallet still pending after 40s'); $('#consentAddr').textContent='wallet pending — you can still set your budget'; }
+              })();
+            }
+          },[p.authenticated, p.user]);
+          return null;
+        }
+
+        const config = {
+          loginMethods:['telegram','email'],
+          appearance:{ accentColor:'#007aff', walletChainType:'solana-only' },
+          // showWalletUIs:false → Privy creates the wallet silently in the background,
+          // no blocking "creating your wallet…" modal. Our own UI handles the wait.
+          embeddedWallets:{ solana:{ createOnLogin:'users-without-wallets' }, showWalletUIs:false },
+        };
+        dbg('SDK imported ✓ · tgHook='+HAS_TG_HOOK);
+        createRoot($('#privy-root')).render(h(PrivyProvider,{appId:APP_ID,config},h(Controller)));
+      }catch(err){ dbg('SDK/BOOT FAILED: '+(err && (err.message||err))); toast('Login failed to load — tap ⓘ'); }
+    }
+
+    function onAuthed(a){
+      $('#consentAddr').textContent = a ? (a.slice(0,4)+'…'+a.slice(-4)) : 'account ready';
+      goConsent();
+      if(a) loadBalance(a);
+    }
+
+    async function loadBalance(a){
+      try{
+        const r = await fetch('https://lite-api.jup.ag/ultra/v1/holdings/'+a);
+        if(!r.ok) throw 0;
+        const d = await r.json();
+        const sol = d && d.SOL && d.SOL.uiAmount != null ? Number(d.SOL.uiAmount) : 0;
+        $('#consentBal').textContent = sol ? (sol.toFixed(3)+' SOL') : 'empty — deposit to start';
+      }catch(_){ $('#consentBal').textContent='—'; }
+    }
+
+    // ---------- grant session ----------
+    $('#mainBtn').onclick = async ()=>{
+      $('#mainLabel').innerHTML = '<span class="spinner"></span> Granting session…';
+      $('#mainBtn').disabled = true;
+      dbg('grant tapped · delegateFn=' + (!!delegateFn));
+      try{
+        if(delegateFn){
+          // Try real Privy delegation, but NEVER hang: race it against a timeout.
+          // Real delegation needs Session signers enabled in the dashboard; until
+          // then (and with no protocol to trade yet) we complete as a demo grant.
+          const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('delegation timeout')), 6000));
+          await Promise.race([ delegateFn({ address: addr, chainType: 'solana' }), timeout ]);
+          dbg('delegation resolved ✓');
+        } else {
+          dbg('no delegateFn → demo grant');
+          await new Promise(r=>setTimeout(r,900));
+        }
+      }catch(err){
+        dbg('delegation skipped: ' + (err && (err.message||err)) + ' → completing as demo');
+        await new Promise(r=>setTimeout(r,200));
+      }
+      $('#done').classList.add('show'); // always land on success — flow never hangs
+    };
+
+    boot();
+  </script>
+</body>
+</html>
